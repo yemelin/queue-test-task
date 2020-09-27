@@ -48,7 +48,13 @@ func main() {
 
 	w := os.Stdout
 	if config.StorageType == 1 {
-		w, err = os.Create("data.txt")
+		fname := "data.txt"
+		srcDir := os.Getenv("SRC_DIR")
+		if srcDir != "" {
+			fname = fmt.Sprintf("%s/%s", srcDir, fname)
+		}
+		logger.Printf("creating %s", fname)
+		w, err = os.Create(fname)
 		if err != nil {
 			logger.Fatalf("failed to create storage file %s: %v", "data.txt", err)
 		}

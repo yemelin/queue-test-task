@@ -5,9 +5,19 @@ build:
 	@docker build -t ${IMAGE} .
 
 .PHONY: run
-run: check-CONFIG build
-	docker run -v ${CONFIG}:/app/config/${notdir ${CONFIG}} ${IMAGE} --config /app/config/${notdir ${CONFIG}}
-	
+run: check-CONFIG
+	@if [ -z "${DEST}" ]; \
+	then \
+		docker run -v ${CONFIG}:/app/config/${notdir ${CONFIG}} \
+		-e SRC_DIR=/app/out \
+		${IMAGE} --config /app/config/${notdir ${CONFIG}}; \
+	else \
+		docker run -v ${CONFIG}:/app/config/${notdir ${CONFIG}} \
+		-e SRC_DIR=/app/out -v ${DEST}:/app/out \
+		${IMAGE} --config /app/config/${notdir ${CONFIG}}; \
+	fi
+
+
 .PHONY: usage
 usage: build
 	@docker run ${IMAGE}
