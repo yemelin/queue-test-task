@@ -44,7 +44,7 @@ func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
 		
 		var wg sync.WaitGroup
 		stoptaskFn := g.newTask(g.ctx, &wg, g.out)
-		fmt.Println("before ticker loop")
+		// fmt.Println("before ticker loop")
 		for {
 			select {
 			case <-g.ctx.Done():
@@ -52,7 +52,7 @@ func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
 				wg.Wait()
 				return
 			case <-ticker.C:
-				fmt.Println("ticker event")
+				// fmt.Println("ticker event")
 				stoptaskFn()
 				stoptaskFn = g.newTask(g.ctx, &wg, g.out)
 			}
@@ -86,7 +86,7 @@ func (g *Generator) newTask(ctx context.Context, wg *sync.WaitGroup, ch chan Dat
 			case <-childCtx.Done():
 				return
 			case g.out <- Data{ds.ID, ds.InitValue}:
-				fmt.Println("value sent")
+				// fmt.Println("value sent")
 				ds.InitValue += rand.Intn(ds.MaxChangeStep)
 				ds.count++
 			}

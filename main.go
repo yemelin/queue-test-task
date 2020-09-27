@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"sync"
 	"time"
 )
 
@@ -41,26 +40,14 @@ func main() {
 		g.Stop()
 	}()
 
-	var wg sync.WaitGroup
-	f := func(c <-chan Data) {
-		for d := range c {
-			fmt.Printf("read %s: %d\n", d.ID, d.Value)
-		}
-		wg.Done()
-	}
-
 	q := NewQueue(10)
 	q.AddPublisher(g.out)
-	out1 := q.Subscribe("data_1")
-	out2 := q.Subscribe("data_2")
-	out3 := q.Subscribe("data_3")
+	var subscriptions []Subscription
+	for _, topic := range []string{"data_1", "data_2", "data_3"} {
+		subscriptions = append(subscriptions, Subscription{topic, q.Subscription(topic)})
+	}
+	_ = NewAggregator(subscriptions, 10)
 
-	wg.Add(1)
-	go f(out1)
-	wg.Add(1)
-	go f(out2)
-	wg.Add(1)
-	go f(out3)
 	_, done := g.Start()
 	<-done
 }
