@@ -54,7 +54,7 @@ func main() {
 		}
 	}
 	storage := &Storage{w: w, logger: NewLogger("Storage")}
-	_ = NewAggregator(subscriptions, config.Agregators[0].AgregatePeriodS, storage)
+	_, aggDone := NewAggregator(subscriptions, config.Agregators[0].AgregatePeriodS, storage)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(
@@ -72,9 +72,10 @@ func main() {
 	_, done := g.Start()
 
 	<-done
-	logger.Println("received DONE from generator, closing queue")
-	q.Close()
+	logger.Println("received DONE from generator, waiting for aggregator")
+	<-aggDone
 	err = storage.Close(5)
+	// time.Sleep(5 * time.Second)
 }
 
 func InitApp(args []string) (*AppConfig, error) {

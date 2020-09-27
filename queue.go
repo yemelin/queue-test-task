@@ -78,12 +78,12 @@ func (q *Queue) start() {
 		}
 		q.lock.RUnlock()
 	}()
-	// go func() {
-	// 	q.logger.Println("publishing exhaustion monitor started")
-	// 	q.wg.Wait()
-	// 	q.logger.Println("all publishers exhausted, closing queue")
-	// 	close(q.q)
-	// }()
+	go func() {
+		q.logger.Println("publishing exhaustion monitor started")
+		q.wg.Wait()
+		q.logger.Println("all publishers exhausted, closing queue")
+		close(q.q)
+	}()
 }
 
 func (q *Queue) Close() {
