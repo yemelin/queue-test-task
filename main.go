@@ -21,29 +21,33 @@ func main() {
 	if err != nil {
 		logger.Fatalln(err)
 	}
-	conf := config.Generators[0]
-	dataSources := make([]DataSource, len(conf.DataSources))
-	for i, ds := range conf.DataSources {
-		dataSources[i] = DataSource{
-			ID:            ds.ID,
-			InitValue:     ds.InitValue,
-			MaxChangeStep: ds.MaxChangeStep,
-		}
-	}
 	ctx, shutDown := context.WithCancel(context.Background())
-	g := &Generator{
-		parentctx:   ctx,
-		timeout:     100 * time.Duration(conf.TimeoutS) * time.Millisecond,
-		sendPeriod:  100 * time.Duration(conf.SendPeriodS) * time.Millisecond,
-		out:         make(chan Data),
-		dataSources: dataSources,
-		logger:      NewLogger("Generator"),
+	q := NewQueue(config.Queue.Size)
+	generators := make([]Generator, len(config.Generators))
+	for i := 0; i < len(config.Generators); i++ {
+		conf := config.Generators[i]
+		dataSources := make([]DataSource, len(conf.DataSources))
+		for i, ds := range conf.DataSources {
+			dataSources[i] = DataSource{
+				ID:            ds.ID,
+				InitValue:     ds.InitValue,
+				MaxChangeStep: ds.MaxChangeStep,
+			}
+		}
+		generators[i] = Generator{
+			parentctx:   ctx,
+			timeout:     100 * time.Duration(conf.TimeoutS) * time.Millisecond,
+			sendPeriod:  100 * time.Duration(conf.SendPeriodS) * time.Millisecond,
+			out:         make(chan Data),
+			dataSources: dataSources,
+			logger:      NewLogger("Generator"),
+		}
+
+		q.AddPublisher(generators[i].out)
 	}
 
-	q := NewQueue(10)
-	q.AddPublisher(g.out)
 	var subscriptions []Subscription
-	for _, topic := range []string{"data_1", "data_2", "data_3"} {
+	for _, topic := range config.Agregators[0].SubIds {
 		subscriptions = append(subscriptions, Subscription{topic, q.Subscription(topic)})
 	}
 	w := os.Stdout
@@ -68,10 +72,14 @@ func main() {
 		logger.Println("caught stop signal")
 		shutDown()
 	}()
+	done := make([]<-chan struct{}, len(generators))
+	for i := range generators {
+		_, done[i] = generators[i].Start()
+	}
+	for i := 0; i < len(done); i++ {
+		<-done[i]
+	}
 
-	_, done := g.Start()
-
-	<-done
 	logger.Println("received DONE from generator, waiting for aggregator")
 	<-aggDone
 	err = storage.Close(5)
@@ -81,7 +89,7 @@ func main() {
 func InitApp(args []string) (*AppConfig, error) {
 	f, err := os.Open(os.Args[2])
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("eror opening %s; %v", os.Args[2], err))
+		return nil, errors.New(fmt.Sprintf("error opening %s; %v", os.Args[2], err))
 	}
 	b, err := ioutil.ReadAll(f)
 	if err != nil {
