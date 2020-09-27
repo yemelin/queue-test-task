@@ -6,7 +6,11 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
+
+	"golang.org/x/net/context"
 )
 
 func main() {
@@ -28,17 +32,19 @@ func main() {
 			MaxChangeStep: ds.MaxChangeStep,
 		}
 	}
+	ctx, shutDown := context.WithCancel(context.Background())
 	g := &Generator{
+		parentctx:   ctx,
 		timeout:     100 * time.Duration(conf.TimeoutS) * time.Millisecond,
 		sendPeriod:  100 * time.Duration(conf.SendPeriodS) * time.Millisecond,
 		out:         make(chan Data),
 		dataSources: dataSources,
 	}
-	go func() {
-		time.Sleep(5 * time.Second)
-		fmt.Println("stopping generator")
-		g.Stop()
-	}()
+	// go func() {
+	// 	time.Sleep(5 * time.Second)
+	// 	fmt.Println("stopping generator")
+	// 	g.Stop()
+	// }()
 
 	q := NewQueue(10)
 	q.AddPublisher(g.out)
@@ -55,6 +61,19 @@ func main() {
 	}
 	storage := &Storage{w: w}
 	_ = NewAggregator(subscriptions, config.Agregators[0].AgregatePeriodS, storage)
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(
+		stop,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+	)
+
+	go func() {
+		<-stop
+		fmt.Println("caught stop signal")
+		shutDown()
+	}()
 
 	_, done := g.Start()
 

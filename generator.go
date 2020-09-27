@@ -17,6 +17,7 @@ type DataSource struct {
 }
 
 type Generator struct {
+	parentctx	context.Context
 	ctx         context.Context
 	cancel      func()
 	timeout     time.Duration
@@ -28,7 +29,7 @@ type Generator struct {
 // TODO: either make resettable, or prohibit re-use
 func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
 	done := make(chan struct{})
-	g.ctx, g.cancel = context.WithTimeout(context.Background(), g.timeout)
+	g.ctx, g.cancel = context.WithTimeout(g.parentctx, g.timeout)
 	ticker := time.NewTicker(g.sendPeriod)
 	go func() {
 		fmt.Println("generation started")
