@@ -26,7 +26,7 @@ type AppConfig struct {
 	StorageType int `json:"storage_type"`
 }
 
-func LoadConfig(b[]byte) (*AppConfig, error) {
+func LoadConfig(b []byte) (*AppConfig, error) {
 	c := AppConfig{}
 	err := json.Unmarshal(b, &c)
 	if err != nil {
@@ -40,7 +40,7 @@ func LoadConfig(b[]byte) (*AppConfig, error) {
 
 // TODO: use validation struct tags
 func Validate(c *AppConfig) error {
-	if c.StorageType < 0 || c.StorageType >1 {
+	if c.StorageType < 0 || c.StorageType > 1 {
 		return errors.New(fmt.Sprintf("invalid storage type %d", c.StorageType))
 	}
 	return nil

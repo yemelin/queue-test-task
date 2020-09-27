@@ -1,13 +1,12 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"sync"
 	"time"
-
-	"golang.org/x/net/context"
 )
 
 // TODO: generate record ID

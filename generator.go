@@ -17,7 +17,7 @@ type DataSource struct {
 }
 
 type Generator struct {
-	parentctx	context.Context
+	parentctx   context.Context
 	ctx         context.Context
 	cancel      func()
 	timeout     time.Duration
@@ -42,7 +42,7 @@ func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
 		defer close(g.out)
 		defer g.cancel()
 		defer ticker.Stop()
-		
+
 		var wg sync.WaitGroup
 		stoptaskFn := g.newTask(g.ctx, &wg, g.out)
 		// fmt.Println("before ticker loop")
@@ -57,7 +57,7 @@ func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
 				stoptaskFn()
 				stoptaskFn = g.newTask(g.ctx, &wg, g.out)
 			}
-		}		
+		}
 	}()
 	return g.out, done
 }

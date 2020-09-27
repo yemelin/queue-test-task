@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -9,8 +10,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	"golang.org/x/net/context"
 )
 
 func main() {
@@ -40,11 +39,6 @@ func main() {
 		out:         make(chan Data),
 		dataSources: dataSources,
 	}
-	// go func() {
-	// 	time.Sleep(5 * time.Second)
-	// 	fmt.Println("stopping generator")
-	// 	g.Stop()
-	// }()
 
 	q := NewQueue(10)
 	q.AddPublisher(g.out)
@@ -81,12 +75,6 @@ func main() {
 	fmt.Println("received DONE from generator, closing queue")
 	q.Close()
 	err = storage.Close(5)
-
-	// time.Sleep(3 * time.Second)
-
-	// fmt.Println("after sleep")
-	// <-aggregatorDone
-	// fmt.Println("received DONE from aggregator")
 }
 
 func InitApp(args []string) (*AppConfig, error) {
