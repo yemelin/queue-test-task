@@ -46,10 +46,28 @@ func main() {
 	for _, topic := range []string{"data_1", "data_2", "data_3"} {
 		subscriptions = append(subscriptions, Subscription{topic, q.Subscription(topic)})
 	}
-	_ = NewAggregator(subscriptions, 10)
+	w := os.Stdout
+	if config.StorageType == 1 {
+		w, err = os.Open("data.txt")
+		if err != nil {
+			log.Fatalf("failed to create storage file %s: %v", "data.txt", err)
+		}
+	}
+	storage := &Storage{w: w}
+	_ = NewAggregator(subscriptions, config.Agregators[0].AgregatePeriodS, storage)
 
 	_, done := g.Start()
+
 	<-done
+	fmt.Println("received DONE from generator, closing queue")
+	q.Close()
+	err = storage.Close(5)
+
+	// time.Sleep(3 * time.Second)
+
+	// fmt.Println("after sleep")
+	// <-aggregatorDone
+	// fmt.Println("received DONE from aggregator")
 }
 
 func InitApp(args []string) (*AppConfig, error) {

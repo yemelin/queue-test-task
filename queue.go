@@ -21,10 +21,10 @@ func (q *Queue) AddPublisher(p <-chan Data) {
 	go func() {
 		fmt.Println("add publisher")
 		for d := range p {
-			fmt.Printf("trying to consume %s: %d\n", d.ID, d.Value)
+			// fmt.Printf("trying to consume %s: %d\n", d.ID, d.Value)
 			select {
 			case q.q <- d:
-				fmt.Println("value written to queue")
+				// fmt.Println("value written to queue")
 			}
 		}
 		fmt.Println("afer the loop")
@@ -58,11 +58,21 @@ func (q *Queue) start() {
 			q.lock.RUnlock()
 			if ok {
 				s <- d
-				fmt.Printf("%v read from queue\n", d)
+				// fmt.Printf("%v read from queue\n", d)
 			} else {
 				fmt.Printf("%v discarded\n", d)
 			}
 		}
 		fmt.Println("afer the subscriber loop")
+		q.lock.RLock()
+		for k, c := range q.subscribers {
+			fmt.Println("closing topic ", k)
+			close(c)
+		}
+		q.lock.RUnlock()
 	}()
+}
+
+func (q *Queue) Close() {
+	close(q.q)
 }
