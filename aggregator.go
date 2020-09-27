@@ -19,7 +19,7 @@ type Aggregator struct {
 	logger *Logger
 }
 
-func NewAggregator(subscriptions []Subscription, period int, storage *Storage) (*Aggregator, chan struct{}) {
+func NewAggregator(subscriptions []Subscription, period int, storage *Storage) (*Aggregator, <-chan struct{}) {
 	aggregators := make([]aggregator, len(subscriptions))
 	for i, subscription := range subscriptions {
 		aggregators[i].id = subscription.id

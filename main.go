@@ -46,19 +46,23 @@ func main() {
 		q.AddPublisher(generators[i].out)
 	}
 
-	var subscriptions []Subscription
-	for _, topic := range config.Agregators[0].SubIds {
-		subscriptions = append(subscriptions, Subscription{topic, q.Subscription(topic)})
-	}
 	w := os.Stdout
 	if config.StorageType == 1 {
-		w, err = os.Open("data.txt")
+		w, err = os.Create("data.txt")
 		if err != nil {
 			logger.Fatalf("failed to create storage file %s: %v", "data.txt", err)
 		}
 	}
 	storage := &Storage{w: w, logger: NewLogger("Storage")}
-	_, aggDone := NewAggregator(subscriptions, config.Agregators[0].AgregatePeriodS, storage)
+
+	aggDone := make([]<-chan struct{}, len(config.Agregators))
+	for i := range config.Agregators {
+		var subscriptions []Subscription
+		for _, topic := range config.Agregators[i].SubIds {
+			subscriptions = append(subscriptions, Subscription{topic, q.Subscription(topic)})
+		}
+		_, aggDone[i] = NewAggregator(subscriptions, config.Agregators[0].AgregatePeriodS, storage)
+	}
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(
@@ -80,10 +84,11 @@ func main() {
 		<-done[i]
 	}
 
-	logger.Println("received DONE from generator, waiting for aggregator")
-	<-aggDone
+	logger.Println("received DONE from generator, waiting for aggregators")
+	for i := 0; i < len(aggDone); i++ {
+		<-aggDone[i]
+	}
 	err = storage.Close(5)
-	// time.Sleep(5 * time.Second)
 }
 
 func InitApp(args []string) (*AppConfig, error) {
