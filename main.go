@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,14 +13,14 @@ import (
 
 func main() {
 	if len(os.Args) != 3 || os.Args[1] != "--config" {
-		log.Printf("usage: %s --config <filename>", os.Args[0])
+		fmt.Printf("usage: %s --config <filename>", os.Args[0])
 		os.Exit(0)
 	}
+	logger := NewLogger("Main")
 	config, err := InitApp(os.Args)
 	if err != nil {
-		log.Fatalln(err)
+		logger.Fatalln(err)
 	}
-	fmt.Println(*config)
 	conf := config.Generators[0]
 	dataSources := make([]DataSource, len(conf.DataSources))
 	for i, ds := range conf.DataSources {
@@ -38,6 +37,7 @@ func main() {
 		sendPeriod:  100 * time.Duration(conf.SendPeriodS) * time.Millisecond,
 		out:         make(chan Data),
 		dataSources: dataSources,
+		logger:      NewLogger("Generator"),
 	}
 
 	q := NewQueue(10)
@@ -50,10 +50,10 @@ func main() {
 	if config.StorageType == 1 {
 		w, err = os.Open("data.txt")
 		if err != nil {
-			log.Fatalf("failed to create storage file %s: %v", "data.txt", err)
+			logger.Fatalf("failed to create storage file %s: %v", "data.txt", err)
 		}
 	}
-	storage := &Storage{w: w}
+	storage := &Storage{w: w, logger: NewLogger("Storage")}
 	_ = NewAggregator(subscriptions, config.Agregators[0].AgregatePeriodS, storage)
 
 	stop := make(chan os.Signal, 1)
@@ -65,14 +65,14 @@ func main() {
 
 	go func() {
 		<-stop
-		fmt.Println("caught stop signal")
+		logger.Println("caught stop signal")
 		shutDown()
 	}()
 
 	_, done := g.Start()
 
 	<-done
-	fmt.Println("received DONE from generator, closing queue")
+	logger.Println("received DONE from generator, closing queue")
 	q.Close()
 	err = storage.Close(5)
 }

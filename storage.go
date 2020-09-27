@@ -21,8 +21,9 @@ func (r Record) String() string {
 }
 
 type Storage struct {
-	w  io.WriteCloser
-	wg sync.WaitGroup
+	w      io.WriteCloser
+	wg     sync.WaitGroup
+	logger *Logger
 }
 
 func (s *Storage) Store(r Record) Result {
@@ -30,7 +31,7 @@ func (s *Storage) Store(r Record) Result {
 	var err error
 	wg.Add(1)
 	s.wg.Add(1)
-	fmt.Println("STORE ", r)
+	s.logger.Debugf("STORE %v", r)
 	go func() {
 		_, err = io.WriteString(s.w, fmt.Sprintf("%v -- %v\n", time.Now(), r))
 		wg.Done()
@@ -40,7 +41,7 @@ func (s *Storage) Store(r Record) Result {
 }
 
 func (s *Storage) Close(d int) error {
-	fmt.Println("closing storage")
+	s.logger.Println("closing storage")
 	done := make(chan struct{})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(d)*time.Second)
 	defer cancel()
@@ -49,15 +50,13 @@ func (s *Storage) Close(d int) error {
 		// s.w.Close()
 		done <- struct{}{}
 	}()
-	fmt.Println("before select")
 	for {
-		fmt.Println("inside select")
 		select {
 		case <-done:
-			fmt.Println("storage closed gracefully")
+			s.logger.Println("storage closed gracefully")
 			return nil
 		case <-ctx.Done():
-			fmt.Println("failed to close Storage gracefully")
+			s.logger.Println("failed to close Storage gracefully")
 			return errors.New("failed to close Storage gracefully")
 		}
 	}

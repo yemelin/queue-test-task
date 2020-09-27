@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"math/rand"
 	"sync"
 	"time"
@@ -24,6 +22,7 @@ type Generator struct {
 	sendPeriod  time.Duration
 	out         chan Data
 	dataSources []DataSource
+	logger      *Logger
 }
 
 // TODO: either make resettable, or prohibit re-use
@@ -32,11 +31,11 @@ func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
 	g.ctx, g.cancel = context.WithTimeout(g.parentctx, g.timeout)
 	ticker := time.NewTicker(g.sendPeriod)
 	go func() {
-		fmt.Println("generation started")
+		g.logger.Println("generation started")
 		defer func() { done <- struct{}{} }()
 		defer func() {
 			for _, ds := range g.dataSources {
-				log.Printf("sent %d values of type %s\n", ds.count, ds.ID)
+				g.logger.Printf("sent %d values of type %s\n", ds.count, ds.ID)
 			}
 		}()
 		defer close(g.out)
@@ -49,7 +48,7 @@ func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
 		for {
 			select {
 			case <-g.ctx.Done():
-				fmt.Println("DONE")
+				g.logger.Println("DONE")
 				wg.Wait()
 				return
 			case <-ticker.C:
@@ -64,7 +63,7 @@ func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
 
 func (g *Generator) Stop() {
 	if g.cancel != nil {
-		fmt.Println("stop signal received")
+		g.logger.Println("stop signal received")
 		g.cancel()
 	}
 }
