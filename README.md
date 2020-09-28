@@ -16,3 +16,5 @@ or
 choose the latter to map the output directory to `DEST` 
 if storage type is 1 in the config. program output will be in
 file `data.txt`
+stop gracefully with `make stop`
+CTRL-C will stop execution gracefully, but return exit code 130
