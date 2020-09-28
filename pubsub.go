@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -32,7 +31,7 @@ func (m *PubSubManager) AddPublishers(publishers []Publisher) {
 	}
 }
 
-// add before publishers
+// call before publishers
 func (m *PubSubManager) AddSubscribers(subscribers []Subscriber) {
 	for _, subscriber := range subscribers {
 		for _, topic := range subscriber.Topics() {
@@ -47,10 +46,7 @@ func (m *PubSubManager) AddSubscribers(subscribers []Subscriber) {
 }
 
 func (m *PubSubManager) Wait() {
-	fmt.Println("waiting for queue")
 	m.q.Wait()
-	fmt.Println("waiting for publishers")
 	m.pubwg.Wait()
-	fmt.Println("waiting for subscribers")
 	m.subwg.Wait()
 }

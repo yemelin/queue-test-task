@@ -18,7 +18,7 @@ func NewQueue(cap int) *Queue {
 		q:               make(chan Data, cap),
 		subscribers:     make(map[string]chan Data),
 		noNewPublishers: make(chan struct{}),
-		logger:          NewLogger("Queue"),
+		logger:          NewLogger("queue"),
 	}
 	queue.start()
 	return queue
@@ -83,7 +83,6 @@ func (q *Queue) start() {
 	go func() {
 		q.logger.Println("publishing exhaustion monitor started")
 		<-q.noNewPublishers
-		q.logger.Println("waiting for exhaustion")
 		q.wg.Wait()
 		q.logger.Println("all publishers exhausted, closing queue")
 		close(q.q)
@@ -92,11 +91,5 @@ func (q *Queue) start() {
 
 // accept no more publishers
 func (q *Queue) Wait() {
-	q.logger.Println("sending no more pubishers signal")
 	close(q.noNewPublishers)
-	q.logger.Println("no more pubishers signal sent!")
-}
-
-func (q *Queue) Close() {
-	close(q.q)
 }

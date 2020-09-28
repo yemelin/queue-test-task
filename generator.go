@@ -26,15 +26,12 @@ type Generator struct {
 }
 
 // TODO: either make resettable, or prohibit re-use
-// func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
 func (g *Generator) Start(outerWG *sync.WaitGroup) {
-	// done := make(chan struct{})
 	g.ctx, g.cancel = context.WithTimeout(g.parentctx, g.timeout)
 	ticker := time.NewTicker(g.sendPeriod)
 	go func() {
 		g.logger.Println("generation started")
-		// defer func() { done <- struct{}{} }()
-		defer g.logger.Println("Generator exited")
+
 		defer outerWG.Done()
 		defer func() {
 			for _, ds := range g.dataSources {
@@ -47,7 +44,6 @@ func (g *Generator) Start(outerWG *sync.WaitGroup) {
 
 		var wg sync.WaitGroup
 		stoptaskFn := g.newTask(g.ctx, &wg, g.out)
-		// fmt.Println("before ticker loop")
 		for {
 			select {
 			case <-g.ctx.Done():
@@ -55,13 +51,11 @@ func (g *Generator) Start(outerWG *sync.WaitGroup) {
 				wg.Wait()
 				return
 			case <-ticker.C:
-				// fmt.Println("ticker event")
 				stoptaskFn()
 				stoptaskFn = g.newTask(g.ctx, &wg, g.out)
 			}
 		}
 	}()
-	// return g.out, done
 }
 
 func (g *Generator) Outbound() <-chan Data {
@@ -93,7 +87,6 @@ func (g *Generator) newTask(ctx context.Context, wg *sync.WaitGroup, ch chan Dat
 			case <-childCtx.Done():
 				return
 			case g.out <- Data{ds.ID, ds.InitValue}:
-				// fmt.Println("value sent")
 				ds.InitValue += rand.Intn(ds.MaxChangeStep)
 				ds.count++
 			}

@@ -6,73 +6,49 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	// "os/signal"
-	// "syscall"
+	"os/signal"
+	"syscall"
 	"time"
 )
+
+const storageTimeout = 5
 
 func main() {
 	if len(os.Args) != 3 || os.Args[1] != "--config" {
 		fmt.Printf("usage: %s --config <filename>", os.Args[0])
 		os.Exit(0)
 	}
-	logger := NewLogger("Main")
+	logger := NewLogger("main")
 	config, err := InitApp(os.Args)
 	if err != nil {
 		logger.Fatalln(err)
 	}
 
 	q := NewQueue(config.Queue.Size)
-
-	generators, _ := createGenerators(config)
-	// for i := range generators {
-	// 	q.AddPublisher(generators[i].out)
-	// }
-
+	generators, shutDown := createGenerators(config)
 	storage, err := createStorage(config)
 	if err != nil {
 		logger.Fatalf("failed to create storage file %s: %v", "data.txt", err)
 	}
-
-	// aggDone := make([]<-chan struct{}, len(config.Agregators))
-	// for i := range config.Agregators {
-	// 	var subscriptions []Subscription
-	// 	for _, topic := range config.Agregators[i].SubIds {
-	// 		subscriptions = append(subscriptions, Subscription{topic, q.Subscription(topic)})
-	// 	}
-	// 	_, aggDone[i] = NewAggregator(subscriptions, config.Agregators[0].AgregatePeriodS, storage)
-	// }
 	aggregators := createAggregators(config, storage)
 	pubsub := &PubSubManager{q: q}
 
-	// stop := make(chan os.Signal, 1)
-	// signal.Notify(
-	// 	stop,
-	// 	syscall.SIGINT,
-	// 	syscall.SIGTERM,
-	// )
-	// go func() {
-	// 	<-stop
-	// 	logger.Println("caught stop signal")
-	// 	shutDown()
-	// }()
+	stop := make(chan os.Signal, 1)
+	signal.Notify(
+		stop,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+	)
+	go func() {
+		<-stop
+		logger.Println("caught stop signal")
+		shutDown()
+	}()
 
 	pubsub.AddSubscribers(aggregators)
 	pubsub.AddPublishers(generators)
-	// done := make([]<-chan struct{}, len(generators))
-	// for i := range generators {
-	// 	_, done[i] = generators[i].Start()
-	// }
-	// for i := 0; i < len(done); i++ {
-	// 	<-done[i]
-	// }
-
-	// logger.Println("received DONE from generator, waiting for aggregators")
-	// for i := 0; i < len(aggDone); i++ {
-	// 	<-aggDone[i]
-	// }
 	pubsub.Wait()
-	err = storage.Close(5)
+	err = storage.Close(storageTimeout)
 }
 
 func InitApp(args []string) (*AppConfig, error) {
@@ -106,11 +82,11 @@ func createGenerators(config *AppConfig) (generators []Publisher, cancel func())
 		}
 		generators[i] = &Generator{
 			parentctx:   ctx,
-			timeout:     100 * time.Duration(conf.TimeoutS) * time.Millisecond,
-			sendPeriod:  100 * time.Duration(conf.SendPeriodS) * time.Millisecond,
+			timeout:     time.Duration(conf.TimeoutS) * time.Second,
+			sendPeriod:  time.Duration(conf.SendPeriodS) * time.Second,
 			out:         make(chan Data),
 			dataSources: dataSources,
-			logger:      NewLogger("Generator"),
+			logger:      NewLogger("generator"),
 		}
 	}
 	return generators, shutDown

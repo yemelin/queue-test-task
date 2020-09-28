@@ -10,37 +10,21 @@ type Subscription struct {
 	in <-chan Data
 }
 
-// TODO: add stopping mechanism - context
 type Aggregator struct {
 	topics      []string
 	aggregators []aggregator
 	period      time.Duration
 	storage     *Storage
-	// done        chan struct{}
-	logger *Logger
+	logger      *Logger
 }
 
-// func NewAggregator(subscriptions []Subscription, period int, storage *Storage) (*Aggregator, <-chan struct{}) {
 func NewAggregator(topics []string, period int, storage *Storage) *Aggregator {
-	// aggregators := make([]aggregator, len(subscriptions))
-	// for i, subscription := range subscriptions {
-	// 	aggregators[i].id = subscription.id
-	// 	aggregators[i].in = subscription.in
-	// 	aggregators[i].dump = make(chan struct{})
-	// 	aggregators[i].s = storage
-	// 	aggregators[i].logger = NewLogger("Agg_" + subscription.id)
-	// }
-	// done := make(chan struct{})
 	a := &Aggregator{
-		topics: topics,
-		// aggregators: aggregators,
-		period: 100 * time.Duration(period) * time.Millisecond,
-		// done:        done,
+		topics:  topics,
+		period:  time.Duration(period) * time.Second,
 		storage: storage,
-		logger:  NewLogger("Aggregator"),
+		logger:  NewLogger("aggregator"),
 	}
-	// a.run()
-	// return a, done
 	return a
 }
 
@@ -71,32 +55,28 @@ func (a *Aggregator) Start(outerWG *sync.WaitGroup) {
 	}
 	done := make(chan struct{})
 	ticker := time.NewTicker(a.period)
-	go func(done chan struct{}) {
+	go func() {
 		defer func() {
 			ticker.Stop()
 			outerWG.Done()
-			// a.done <- struct{}{}
 		}()
 		for {
 			select {
 			case <-done:
-				a.logger.Printf("done received")
 				return
 			case <-ticker.C:
-				a.logger.Println("aggregator ticker event")
 				for _, child := range a.aggregators {
 					<-child.dump
 				}
 			}
 		}
-	}(done)
-	go func(done chan struct{}) {
+	}()
+	go func() {
 		a.logger.Println("children monitor started")
 		wg.Wait()
-		a.logger.Println("children monitor exited")
 		done <- struct{}{}
-		a.logger.Println("children monitor really exited")
-	}(done)
+		a.logger.Println("children monitor exited")
+	}()
 }
 
 type aggregator struct {
@@ -114,7 +94,7 @@ func (a *aggregator) run() {
 	for d := range a.in {
 		select {
 		case a.dump <- struct{}{}:
-			a.logger.Printf("Sent to storage: Avg. %s (%d values): %f", a.id, len(a.avg.vals), a.avg.Value())
+			a.logger.Debugf("Sent to storage: Avg. %s (%d values): %f", a.id, len(a.avg.vals), a.avg.Value())
 			_ = a.s.Store(Record{a.id, len(a.avg.vals), a.avg.Value()})
 			a.count++
 			a.avg.Reset()
@@ -124,9 +104,8 @@ func (a *aggregator) run() {
 		}
 	}
 	close(a.dump)
-	a.logger.Printf("child loop done")
 	if len(a.avg.vals) > 0 {
-		// a.logger.Printf("Sent to storage: Avg. %s (%d values): %f", a.id, len(a.avg.vals), a.avg.Value())
+		a.logger.Debugf("Sent to storage: Avg. %s (%d values): %f", a.id, len(a.avg.vals), a.avg.Value())
 		_ = a.s.Store(Record{a.id, len(a.avg.vals), a.avg.Value()})
 		a.count++
 	}
