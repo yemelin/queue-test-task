@@ -94,7 +94,7 @@ func (a *aggregator) run() {
 	for d := range a.in {
 		select {
 		case a.dump <- struct{}{}:
-			a.logger.Debugf("Sent to storage: Avg. %s (%d values): %f", a.id, len(a.avg.vals), a.avg.Value())
+			a.logger.Printf("Sent to storage: Avg. %s (%d values): %f", a.id, len(a.avg.vals), a.avg.Value())
 			_ = a.s.Store(Record{a.id, len(a.avg.vals), a.avg.Value()})
 			a.count++
 			a.avg.Reset()
@@ -105,7 +105,7 @@ func (a *aggregator) run() {
 	}
 	close(a.dump)
 	if len(a.avg.vals) > 0 {
-		a.logger.Debugf("Sent to storage: Avg. %s (%d values): %f", a.id, len(a.avg.vals), a.avg.Value())
+		a.logger.Printf("Sent to storage: Avg. %s (%d values): %f", a.id, len(a.avg.vals), a.avg.Value())
 		_ = a.s.Store(Record{a.id, len(a.avg.vals), a.avg.Value()})
 		a.count++
 	}

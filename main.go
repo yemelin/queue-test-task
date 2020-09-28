@@ -24,12 +24,24 @@ func main() {
 		logger.Fatalln(err)
 	}
 
+	w := os.Stdout
+	if config.StorageType == 1 {
+		fname := "data.txt"
+		srcDir := os.Getenv("SRC_DIR")
+		if srcDir != "" {
+			fname = fmt.Sprintf("%s/%s", srcDir, fname)
+		}
+		f, err := os.Create(fname)
+		defer f.Close()
+		w = f
+		if err != nil {
+			logger.Fatalf("failed to create storage file %s: %v", fname, err)
+		}
+	}
+
+	storage := &Storage{w: w, logger: NewLogger("Storage")}
 	q := NewQueue(config.Queue.Size)
 	generators, shutDown := createGenerators(config)
-	storage, err := createStorage(config)
-	if err != nil {
-		logger.Fatalf("failed to create storage file %s: %v", "data.txt", err)
-	}
 	aggregators := createAggregators(config, storage)
 	pubsub := &PubSubManager{q: q}
 
@@ -48,17 +60,18 @@ func main() {
 	pubsub.AddSubscribers(aggregators)
 	pubsub.AddPublishers(generators)
 	pubsub.Wait()
-	err = storage.Close(storageTimeout)
+	err = storage.Wait(storageTimeout)
 }
 
 func InitApp(args []string) (*AppConfig, error) {
-	f, err := os.Open(os.Args[2])
+	f, err := os.Open(args[2])
+	defer f.Close()
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("error opening %s; %v", os.Args[2], err))
+		return nil, errors.New(fmt.Sprintf("error opening %s; %v", args[2], err))
 	}
 	b, err := ioutil.ReadAll(f)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("error reading from %s: %v", os.Args[2], err))
+		return nil, errors.New(fmt.Sprintf("error reading from %s: %v", args[2], err))
 	}
 	config, err := LoadConfig(b)
 	if err != nil {
@@ -67,9 +80,9 @@ func InitApp(args []string) (*AppConfig, error) {
 	return config, err
 }
 
-func createGenerators(config *AppConfig) (generators []Publisher, cancel func()) {
+func createGenerators(config *AppConfig) (generators []PublishingStream, cancel func()) {
 	ctx, shutDown := context.WithCancel(context.Background())
-	generators = make([]Publisher, len(config.Generators))
+	generators = make([]PublishingStream, len(config.Generators))
 	for i := 0; i < len(config.Generators); i++ {
 		conf := config.Generators[i]
 		dataSources := make([]DataSource, len(conf.DataSources))
@@ -86,7 +99,7 @@ func createGenerators(config *AppConfig) (generators []Publisher, cancel func())
 			sendPeriod:  time.Duration(conf.SendPeriodS) * time.Second,
 			out:         make(chan Data),
 			dataSources: dataSources,
-			logger:      NewLogger("generator"),
+			logger:      NewLogger(fmt.Sprintf("%s_%d", "generator", i)),
 		}
 	}
 	return generators, shutDown
@@ -103,7 +116,7 @@ func createStorage(config *AppConfig) (*Storage, error) {
 		var err error
 		w, err = os.Create(fname)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create %s: %v", fname, err)
 		}
 	}
 	return &Storage{w: w, logger: NewLogger("Storage")}, nil

@@ -51,6 +51,7 @@ func (g *Generator) Start(outerWG *sync.WaitGroup) {
 				wg.Wait()
 				return
 			case <-ticker.C:
+				g.logger.Println("ticker event, generating new data")
 				stoptaskFn()
 				stoptaskFn = g.newTask(g.ctx, &wg, g.out)
 			}

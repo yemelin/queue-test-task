@@ -21,7 +21,7 @@ func (r Record) String() string {
 }
 
 type Storage struct {
-	w      io.WriteCloser
+	w      io.Writer
 	wg     sync.WaitGroup
 	logger *Logger
 }
@@ -40,14 +40,13 @@ func (s *Storage) Store(r Record) Result {
 	return Result{err, &wg}
 }
 
-func (s *Storage) Close(d int) error {
+func (s *Storage) Wait(d int) error {
 	s.logger.Println("closing storage")
 	done := make(chan struct{})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(d)*time.Second)
 	defer cancel()
 	go func() {
 		s.wg.Wait()
-		// s.w.Close()
 		done <- struct{}{}
 	}()
 	for {

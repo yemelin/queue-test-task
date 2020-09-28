@@ -25,6 +25,10 @@ stop:
 usage: build
 	@docker run ${IMAGE}
 
+.PHONY: test
+test:
+	go test -tags=async
+
 .PHONY: check-%
 check-%:
 	@if [ -z '${${*}}' ]; then echo 'Environment variable $* not set' && exit 1; fi
