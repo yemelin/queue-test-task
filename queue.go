@@ -5,18 +5,20 @@ import (
 )
 
 type Queue struct {
-	q           chan Data
-	lock        sync.RWMutex
-	subscribers map[string]chan Data
-	wg          sync.WaitGroup
-	logger      *Logger
+	q               chan Data
+	lock            sync.RWMutex
+	subscribers     map[string]chan Data
+	wg              sync.WaitGroup
+	noNewPublishers chan struct{}
+	logger          *Logger
 }
 
 func NewQueue(cap int) *Queue {
 	queue := &Queue{
-		q:           make(chan Data, cap),
-		subscribers: make(map[string]chan Data),
-		logger:      NewLogger("Queue"),
+		q:               make(chan Data, cap),
+		subscribers:     make(map[string]chan Data),
+		noNewPublishers: make(chan struct{}),
+		logger:          NewLogger("Queue"),
 	}
 	queue.start()
 	return queue
@@ -80,10 +82,19 @@ func (q *Queue) start() {
 	}()
 	go func() {
 		q.logger.Println("publishing exhaustion monitor started")
+		<-q.noNewPublishers
+		q.logger.Println("waiting for exhaustion")
 		q.wg.Wait()
 		q.logger.Println("all publishers exhausted, closing queue")
 		close(q.q)
 	}()
+}
+
+// accept no more publishers
+func (q *Queue) Wait() {
+	q.logger.Println("sending no more pubishers signal")
+	close(q.noNewPublishers)
+	q.logger.Println("no more pubishers signal sent!")
 }
 
 func (q *Queue) Close() {

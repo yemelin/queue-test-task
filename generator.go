@@ -26,13 +26,16 @@ type Generator struct {
 }
 
 // TODO: either make resettable, or prohibit re-use
-func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
-	done := make(chan struct{})
+// func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
+func (g *Generator) Start(outerWG *sync.WaitGroup) {
+	// done := make(chan struct{})
 	g.ctx, g.cancel = context.WithTimeout(g.parentctx, g.timeout)
 	ticker := time.NewTicker(g.sendPeriod)
 	go func() {
 		g.logger.Println("generation started")
-		defer func() { done <- struct{}{} }()
+		// defer func() { done <- struct{}{} }()
+		defer g.logger.Println("Generator exited")
+		defer outerWG.Done()
 		defer func() {
 			for _, ds := range g.dataSources {
 				g.logger.Printf("sent %d values of type %s\n", ds.count, ds.ID)
@@ -40,7 +43,7 @@ func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
 		}()
 		defer close(g.out)
 		defer g.cancel()
-		defer ticker.Stop()
+		defer ticker.Stop()		
 
 		var wg sync.WaitGroup
 		stoptaskFn := g.newTask(g.ctx, &wg, g.out)
@@ -58,7 +61,11 @@ func (g *Generator) Start() (out <-chan Data, d <-chan struct{}) {
 			}
 		}
 	}()
-	return g.out, done
+	// return g.out, done
+}
+
+func (g *Generator) Outbound() <-chan Data {
+	return g.out
 }
 
 func (g *Generator) Stop() {

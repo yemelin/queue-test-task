@@ -12,34 +12,53 @@ type Subscription struct {
 
 // TODO: add stopping mechanism - context
 type Aggregator struct {
+	topics      []string
 	aggregators []aggregator
 	period      time.Duration
-	// wg          sync.WaitGroup
-	done   chan struct{}
+	storage     *Storage
+	// done        chan struct{}
 	logger *Logger
 }
 
-func NewAggregator(subscriptions []Subscription, period int, storage *Storage) (*Aggregator, <-chan struct{}) {
-	aggregators := make([]aggregator, len(subscriptions))
-	for i, subscription := range subscriptions {
-		aggregators[i].id = subscription.id
-		aggregators[i].in = subscription.in
-		aggregators[i].dump = make(chan struct{})
-		aggregators[i].s = storage
-		aggregators[i].logger = NewLogger("Agg_" + subscription.id)
-	}
-	done := make(chan struct{})
+// func NewAggregator(subscriptions []Subscription, period int, storage *Storage) (*Aggregator, <-chan struct{}) {
+func NewAggregator(topics []string, period int, storage *Storage) *Aggregator {
+	// aggregators := make([]aggregator, len(subscriptions))
+	// for i, subscription := range subscriptions {
+	// 	aggregators[i].id = subscription.id
+	// 	aggregators[i].in = subscription.in
+	// 	aggregators[i].dump = make(chan struct{})
+	// 	aggregators[i].s = storage
+	// 	aggregators[i].logger = NewLogger("Agg_" + subscription.id)
+	// }
+	// done := make(chan struct{})
 	a := &Aggregator{
-		aggregators: aggregators,
-		period:      100 * time.Duration(period) * time.Millisecond,
-		done:        done,
-		logger:      NewLogger("Aggregator"),
+		topics: topics,
+		// aggregators: aggregators,
+		period: 100 * time.Duration(period) * time.Millisecond,
+		// done:        done,
+		storage: storage,
+		logger:  NewLogger("Aggregator"),
 	}
-	a.run()
-	return a, done
+	// a.run()
+	// return a, done
+	return a
 }
 
-func (a *Aggregator) run() {
+func (a *Aggregator) Topics() []string {
+	return a.topics
+}
+
+func (a *Aggregator) Subscribe(subscription Subscription) {
+	a.aggregators = append(a.aggregators, aggregator{
+		id:     subscription.id,
+		in:     subscription.in,
+		dump:   make(chan struct{}),
+		s:      a.storage,
+		logger: NewLogger("agg_" + subscription.id),
+	})
+}
+
+func (a *Aggregator) Start(outerWG *sync.WaitGroup) {
 	var wg sync.WaitGroup
 	wg.Add(len(a.aggregators))
 	for _, child := range a.aggregators {
@@ -55,7 +74,8 @@ func (a *Aggregator) run() {
 	go func(done chan struct{}) {
 		defer func() {
 			ticker.Stop()
-			a.done <- struct{}{}
+			outerWG.Done()
+			// a.done <- struct{}{}
 		}()
 		for {
 			select {

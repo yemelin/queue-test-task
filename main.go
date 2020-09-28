@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/signal"
-	"syscall"
+	// "os/signal"
+	// "syscall"
 	"time"
 )
 
@@ -21,79 +21,57 @@ func main() {
 	if err != nil {
 		logger.Fatalln(err)
 	}
-	ctx, shutDown := context.WithCancel(context.Background())
+
 	q := NewQueue(config.Queue.Size)
-	generators := make([]Generator, len(config.Generators))
-	for i := 0; i < len(config.Generators); i++ {
-		conf := config.Generators[i]
-		dataSources := make([]DataSource, len(conf.DataSources))
-		for i, ds := range conf.DataSources {
-			dataSources[i] = DataSource{
-				ID:            ds.ID,
-				InitValue:     ds.InitValue,
-				MaxChangeStep: ds.MaxChangeStep,
-			}
-		}
-		generators[i] = Generator{
-			parentctx:   ctx,
-			timeout:     100 * time.Duration(conf.TimeoutS) * time.Millisecond,
-			sendPeriod:  100 * time.Duration(conf.SendPeriodS) * time.Millisecond,
-			out:         make(chan Data),
-			dataSources: dataSources,
-			logger:      NewLogger("Generator"),
-		}
 
-		q.AddPublisher(generators[i].out)
+	generators, _ := createGenerators(config)
+	// for i := range generators {
+	// 	q.AddPublisher(generators[i].out)
+	// }
+
+	storage, err := createStorage(config)
+	if err != nil {
+		logger.Fatalf("failed to create storage file %s: %v", "data.txt", err)
 	}
 
-	w := os.Stdout
-	if config.StorageType == 1 {
-		fname := "data.txt"
-		srcDir := os.Getenv("SRC_DIR")
-		if srcDir != "" {
-			fname = fmt.Sprintf("%s/%s", srcDir, fname)
-		}
-		logger.Printf("creating %s", fname)
-		w, err = os.Create(fname)
-		if err != nil {
-			logger.Fatalf("failed to create storage file %s: %v", "data.txt", err)
-		}
-	}
-	storage := &Storage{w: w, logger: NewLogger("Storage")}
+	// aggDone := make([]<-chan struct{}, len(config.Agregators))
+	// for i := range config.Agregators {
+	// 	var subscriptions []Subscription
+	// 	for _, topic := range config.Agregators[i].SubIds {
+	// 		subscriptions = append(subscriptions, Subscription{topic, q.Subscription(topic)})
+	// 	}
+	// 	_, aggDone[i] = NewAggregator(subscriptions, config.Agregators[0].AgregatePeriodS, storage)
+	// }
+	aggregators := createAggregators(config, storage)
+	pubsub := &PubSubManager{q: q}
 
-	aggDone := make([]<-chan struct{}, len(config.Agregators))
-	for i := range config.Agregators {
-		var subscriptions []Subscription
-		for _, topic := range config.Agregators[i].SubIds {
-			subscriptions = append(subscriptions, Subscription{topic, q.Subscription(topic)})
-		}
-		_, aggDone[i] = NewAggregator(subscriptions, config.Agregators[0].AgregatePeriodS, storage)
-	}
+	// stop := make(chan os.Signal, 1)
+	// signal.Notify(
+	// 	stop,
+	// 	syscall.SIGINT,
+	// 	syscall.SIGTERM,
+	// )
+	// go func() {
+	// 	<-stop
+	// 	logger.Println("caught stop signal")
+	// 	shutDown()
+	// }()
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(
-		stop,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-	)
+	pubsub.AddSubscribers(aggregators)
+	pubsub.AddPublishers(generators)
+	// done := make([]<-chan struct{}, len(generators))
+	// for i := range generators {
+	// 	_, done[i] = generators[i].Start()
+	// }
+	// for i := 0; i < len(done); i++ {
+	// 	<-done[i]
+	// }
 
-	go func() {
-		<-stop
-		logger.Println("caught stop signal")
-		shutDown()
-	}()
-	done := make([]<-chan struct{}, len(generators))
-	for i := range generators {
-		_, done[i] = generators[i].Start()
-	}
-	for i := 0; i < len(done); i++ {
-		<-done[i]
-	}
-
-	logger.Println("received DONE from generator, waiting for aggregators")
-	for i := 0; i < len(aggDone); i++ {
-		<-aggDone[i]
-	}
+	// logger.Println("received DONE from generator, waiting for aggregators")
+	// for i := 0; i < len(aggDone); i++ {
+	// 	<-aggDone[i]
+	// }
+	pubsub.Wait()
 	err = storage.Close(5)
 }
 
@@ -111,4 +89,54 @@ func InitApp(args []string) (*AppConfig, error) {
 		return nil, errors.New(fmt.Sprintf("error loading config; %v", err))
 	}
 	return config, err
+}
+
+func createGenerators(config *AppConfig) (generators []Publisher, cancel func()) {
+	ctx, shutDown := context.WithCancel(context.Background())
+	generators = make([]Publisher, len(config.Generators))
+	for i := 0; i < len(config.Generators); i++ {
+		conf := config.Generators[i]
+		dataSources := make([]DataSource, len(conf.DataSources))
+		for i, ds := range conf.DataSources {
+			dataSources[i] = DataSource{
+				ID:            ds.ID,
+				InitValue:     ds.InitValue,
+				MaxChangeStep: ds.MaxChangeStep,
+			}
+		}
+		generators[i] = &Generator{
+			parentctx:   ctx,
+			timeout:     100 * time.Duration(conf.TimeoutS) * time.Millisecond,
+			sendPeriod:  100 * time.Duration(conf.SendPeriodS) * time.Millisecond,
+			out:         make(chan Data),
+			dataSources: dataSources,
+			logger:      NewLogger("Generator"),
+		}
+	}
+	return generators, shutDown
+}
+
+func createStorage(config *AppConfig) (*Storage, error) {
+	w := os.Stdout
+	if config.StorageType == 1 {
+		fname := "data.txt"
+		srcDir := os.Getenv("SRC_DIR")
+		if srcDir != "" {
+			fname = fmt.Sprintf("%s/%s", srcDir, fname)
+		}
+		var err error
+		w, err = os.Create(fname)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &Storage{w: w, logger: NewLogger("Storage")}, nil
+}
+
+func createAggregators(config *AppConfig, storage *Storage) []Subscriber {
+	ret := make([]Subscriber, len(config.Agregators))
+	for i, c := range config.Agregators {
+		ret[i] = NewAggregator(c.SubIds, c.AgregatePeriodS, storage)
+	}
+	return ret
 }
