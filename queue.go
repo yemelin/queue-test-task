@@ -4,6 +4,10 @@ import (
 	"sync"
 )
 
+// Queue - not suitable for real purposes
+// uses buffered channel to simplif its compliance to size requirement, and will choke if any of
+// subscribers chokes.
+// Having a channel for each topic instead would be more viable
 type Queue struct {
 	q               chan Data
 	lock            sync.RWMutex

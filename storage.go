@@ -30,9 +30,6 @@ func (s *Storage) Store(r Record) Result {
 	var wg sync.WaitGroup
 	var err error
 	wg.Add(1)
-	if s == nil {
-		panic("NIL!")
-	}
 	s.wg.Add(1)
 	s.logger.Debugf("STORE %v", r)
 	go func() {
