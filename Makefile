@@ -9,11 +9,11 @@ run: check-CONFIG build
 	@if [ -z "${DEST}" ]; \
 	then \
 		docker run --rm -v ${CONFIG}:/app/config/${notdir ${CONFIG}} \
-		-e SRC_DIR=/app/out -t --name simpliniqueue\
+		-e SRC_DIR=/app/out -it --name simpliniqueue\
 		${IMAGE} --config /app/config/${notdir ${CONFIG}}; \
 	else \
 		docker run --rm -v ${CONFIG}:/app/config/${notdir ${CONFIG}} \
-		-e SRC_DIR=/app/out -v ${DEST}:/app/out -t --name simpliniqueue\
+		-e SRC_DIR=/app/out -v ${DEST}:/app/out -it --name simpliniqueue\
 		${IMAGE} --config /app/config/${notdir ${CONFIG}}; \
 	fi
 
